@@ -39,22 +39,25 @@ public:
 
     SimpleVector() noexcept = default;
 
-    explicit SimpleVector(size_t size) :
-        items_(size),
-        size_(size),
-        capacity_(size) {
-        std::fill(begin(), end(), 0);
+    explicit SimpleVector(size_t size) 
+        : SimpleVector(size, Type{})
+    {
+
     }
 
 
     SimpleVector(size_t size, const Type& value)
-        : SimpleVector(size) {
+        : items_(size),
+        size_(size),
+        capacity_(size) {
         std::fill(begin(), end(), value);
     }
 
     // Создаёт вектор из std::initializer_list
     SimpleVector(std::initializer_list<Type> init)
-        : SimpleVector(init.size()) {
+        : items_(init.size()),
+        size_(init.size()),
+        capacity_(init.size()) {
         std::copy(init.begin(), init.end(), items_.Get());
     }
 
@@ -104,7 +107,7 @@ public:
 
     // Обнуляет размер массива, не изменяя его вместимость
     void Clear() noexcept {
-        this->Resize(0);
+        size_ = 0;
     }
 
     // Изменяет размер массива.
@@ -122,8 +125,7 @@ public:
             auto razmer = std::max(new_size, capacity_ * 2);
             ArrayPtr<Type> more(razmer);
             std::move(begin(), end(), more.Get());
-            std::fill(more.Get() + size_, more.Get() + new_size, 0);
-            std::generate(more.Get() + size_, more.Get() + new_size, []() {return Type(); });
+            std::generate(more.Get() + size_, more.Get() + new_size, []() {return Type{}; });
             items_.swap(more);
             size_ = new_size;
             capacity_ = razmer;
@@ -197,10 +199,7 @@ public:
 
     SimpleVector& operator=(SimpleVector&& rhs) {
         if (this != &rhs) {
-            SimpleVector<Type> tmp(rhs.size_);
-            std::move(rhs.begin(),rhs.end(), tmp.begin());
-            tmp.capacity_ = rhs.capacity_;
-            tmp.size_ = rhs.size_;
+            SimpleVector<Type> tmp(std::move(rhs));
             swap(tmp);
         }
         return *this;
@@ -277,7 +276,7 @@ public:
         else {
             auto razmer = std::max(static_cast <size_t>(1), capacity_ * 2);
             ArrayPtr<Type> temp(razmer);
-            std::move(&items_[0], &items_[dis], &items_[0]);
+            std::move(&items_[0], &items_[dis], temp.Get());
             temp[dis] = std::move(value);
             std::move_backward(begin() + dis, end(), temp.Get() + size_ + 1);
             items_.swap(temp);
@@ -287,6 +286,7 @@ public:
         }
 
     }
+
 
     // "Удаляет" последний элемент вектора. Вектор не должен быть пустым
     void PopBack() noexcept {
@@ -304,7 +304,7 @@ public:
 
     // Обменивает значение с другим вектором
     void swap(SimpleVector& other) noexcept {
-        items_.swap(other.items_);
+        std::swap(items_, other.items_);
         size_t x = size_;
         size_t y = capacity_;
         size_ = other.size_;
@@ -340,10 +340,7 @@ inline bool operator==(const SimpleVector<Type>& lhs, const SimpleVector<Type>& 
 
 template <typename Type>
 inline bool operator!=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    if (lhs.GetSize() != rhs.GetSize()) {
-        return true;
-    }
-    return !std::equal(lhs.begin(), lhs.end(), rhs.begin());
+    return !(lhs==rhs);
 }
 
 template <typename Type>
@@ -353,20 +350,20 @@ inline bool operator<(const SimpleVector<Type>& lhs, const SimpleVector<Type>& r
 
 template <typename Type>
 inline bool operator<=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    if (lhs == rhs || lhs < rhs) {
-        return true;
-    }
-    else {
-        return false;
-    }
+    return !(lhs > rhs);
 }
 
 template <typename Type>
 inline bool operator>(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    return !(lhs <= rhs);
+    return rhs < lhs;
 }
 
 template <typename Type>
 inline bool operator>=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
     return !(lhs < rhs);
 }
+
+// Спасибо большое за комментарии. Когда указывают на ошибки,лучше усваивается материал.
+// В Resize() ещё убрал std::fill, он там не нужен.
+//Конструкторы изначально были в том виде который сейчас. Но компилятор не принимал. 
+//Думал, что из-за этих конструкторов. Оказалось, из-за функции Resize().
